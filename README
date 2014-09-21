@@ -1,0 +1,20 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=5020
+
+This plugin contains multiple refactoring tools for PHP code.
+
+Here is the default mapping :
+
+nnoremap <unique> <Leader>rlv :call PhpRenameLocalVariable()<CR>
+nnoremap <unique> <Leader>rcv :call PhpRenameClassVariable()<CR>
+nnoremap <unique> <Leader>rm :call PhpRenameMethod()<CR>
+nnoremap <unique> <Leader>eu :call PhpExtractUse()<CR>
+vnoremap <unique> <Leader>ec :call PhpExtractConst()<CR>
+nnoremap <unique> <Leader>ep :call PhpExtractClassProperty()<CR>
+vnoremap <unique> <Leader>em :call PhpExtractMethod()<CR>
+nnoremap <unique> <Leader>np :call PhpCreateProperty()<CR>
+nnoremap <unique> <Leader>du :call PhpDetectUnusedUseStatements()<CR>
+vnoremap <unique> <Leader>== :call PhpAlignAssigns()<CR>
+nnoremap <unique> <Leader>sg :call PhpCreateSettersAndGetters()<CR>
+nnoremap <unique> <Leader>da :call PhpDocAll()<CR>
+
+You can find more details on how to use this script here : https://github.com/adoy/vim-php-refactoring-toolbox
