@@ -4,7 +4,7 @@
 " Maintainer: Pierrick Charron <pierrick@adoy.net>
 " URL: https://github.com/adoy/vim-php-refactoring-toolbox
 " License: MIT
-" Version: 1.0.1
+" Version: 1.0.2
 "
 
 " Config {{{
@@ -15,6 +15,30 @@ endif
 
 if !exists('g:vim_php_refactoring_use_default_mapping')
     let g:vim_php_refactoring_use_default_mapping = 1
+endif
+
+if !exists('g:vim_php_refactoring_auto_validate')
+    let g:vim_php_refactoring_auto_validate = 0
+endif
+
+if !exists('g:vim_php_refactoring_auto_validate_sg')
+    let g:vim_php_refactoring_auto_validate_sg = g:vim_php_refactoring_auto_validate
+endif
+
+if !exists('g:vim_php_refactoring_auto_validate_rename')
+    let g:vim_php_refactoring_auto_validate_rename = g:vim_php_refactoring_auto_validate
+endif
+
+if !exists('g:vim_php_refactoring_auto_validate_visibility')
+    let g:vim_php_refactoring_ask_visibility = g:vim_php_refactoring_auto_validate
+endif
+
+if !exists('g:vim_php_refactoring_default_property_visibility')
+    let g:vim_php_refactoring_default_property_visibility = 'private'
+endif
+
+if !exists('g:vim_php_refactoring_default_method_visibility')
+    let g:vim_php_refactoring_default_method_visibility = 'private'
 endif
 " }}}
 
@@ -67,7 +91,7 @@ function! PhpDocAll() " {{{
         return
     endif
     normal magg
-    while search(s:php_regex_class_line, 'eW') > 0 
+    while search(s:php_regex_class_line, 'eW') > 0
         call s:PhpDocument()
     endwhile
     normal gg
@@ -86,14 +110,16 @@ function! PhpCreateSettersAndGetters() " {{{
     normal gg
     let l:properties = []
     while search(s:php_regex_member_line, 'eW') > 0
-        normal w"xyw
+        normal w"xye
         call add(l:properties, @x)
     endwhile
     for l:property in l:properties
         let l:camelCaseName = substitute(l:property, '^_\?\(.\)', '\U\1', '')
-        call s:PhpEchoError('Create set' . l:camelCaseName . '() and get' . l:camelCaseName . '()')
-        if inputlist(["0. No", "1. Yes"]) == 0
-            continue
+        if g:vim_php_refactoring_auto_validate_sg == 0
+            call s:PhpEchoError('Create set' . l:camelCaseName . '() and get' . l:camelCaseName . '()')
+            if inputlist(["0. No", "1. Yes"]) == 0
+                continue
+            endif
         endif
         if search(s:php_regex_func_line . "set" . l:camelCaseName . '\>', 'n') == 0
             call s:PhpInsertMethod("public", "set" . l:camelCaseName, ['$' . substitute(l:property, '^_', '', '') ], "$this->" . l:property . " = $" . substitute(l:property, '^_', '', '') . ";\n")
@@ -109,9 +135,11 @@ function! PhpRenameLocalVariable() " {{{
     let l:oldName = substitute(expand('<cword>'), '^\$*', '', '')
     let l:newName = inputdialog('Rename ' . l:oldName . ' to: ')
     if s:PhpSearchInCurrentFunction('$' . l:newName . '\>', 'n') > 0
-        call s:PhpEchoError('$' . l:newName . ' seems to already exist in the current function scope. Replace anyway ?')
-        if inputlist(["0. No", "1. Yes"]) == 0
-            return
+        if g:vim_php_refactoring_auto_validate_rename == 0
+            call s:PhpEchoError('$' . l:newName . ' seems to already exist in the current function scope. Rename anyway ?')
+            if inputlist(["0. No", "1. Yes"]) == 0
+                return
+            endif
         endif
     endif
     call s:PhpReplaceInCurrentFunction('$' . l:oldName . '\>', '$' . l:newName)
@@ -122,9 +150,11 @@ function! PhpRenameClassVariable() " {{{
     let l:oldName = expand('<cword>')
     let l:newName = inputdialog('Rename ' . l:oldName . ' to: ')
     if s:PhpSearchInCurrentClass('\%(\%(\%(public\|protected\|private\|static\)\_s\+\)\+\$\|$this->\)\@<=' . l:newName . '\>', 'n') > 0
-        call s:PhpEchoError(l:newName . ' seems to already exist in the current class. Replace anyway ?')
-        if inputlist(["0. No", "1. Yes"]) == 0
-            return
+        if g:vim_php_refactoring_auto_validate_rename == 0
+            call s:PhpEchoError(l:newName . ' seems to already exist in the current class. Rename anyway ?')
+            if inputlist(["0. No", "1. Yes"]) == 0
+                return
+            endif
         endif
     endif
     call s:PhpReplaceInCurrentClass('\%(\%(\%(public\|protected\|private\|static\)\_s\+\)\+\$\|$this->\)\@<=' . l:oldName . '\>', l:newName)
@@ -135,9 +165,11 @@ function! PhpRenameMethod() " {{{
     let l:oldName = expand('<cword>')
     let l:newName = inputdialog('Rename ' . l:oldName . ' to: ')
     if s:PhpSearchInCurrentClass('\%(\%(' . s:php_regex_func_line . '\)\|$this->\)\@<=' . l:newName . '\>', 'n') > 0
-        call s:PhpEchoError(l:newName . ' seems to already exist in the current class. Replace anyway ?')
-        if inputlist(["0. No", "1. Yes"]) == 0
-            return
+        if g:vim_php_refactoring_auto_validate_rename == 0
+            call s:PhpEchoError(l:newName . ' seems to already exist in the current class. Rename anyway ?')
+            if inputlist(["0. No", "1. Yes"]) == 0
+                return
+            endif
         endif
     endif
     call s:PhpReplaceInCurrentClass('\%(\%(' . s:php_regex_func_line . '\)\|$this->\)\@<=' . l:oldName . '\>', l:newName)
@@ -181,7 +213,15 @@ function! PhpExtractClassProperty() " {{{
     normal mr
     let l:name = expand('<cword>')
     call s:PhpReplaceInCurrentFunction('$' . l:name . '\>', '$this->' . l:name)
-    call s:PhpInsertProperty(l:name, "private")
+    if g:vim_php_refactoring_auto_validate_visibility == 0
+        let l:visibility = inputdialog("Visibility (default is " . g:vim_php_refactoring_default_property_visibility . "): ")
+        if empty(l:visibility)
+            let l:visibility =  g:vim_php_refactoring_default_property_visibility
+        endif
+    else
+        let l:visibility =  g:vim_php_refactoring_default_property_visibility
+    endif
+    call s:PhpInsertProperty(l:name, l:visibility)
     normal `r
 endfunction
 " }}}
@@ -192,6 +232,14 @@ function! PhpExtractMethod() range " {{{
         return
     endif
     let l:name = inputdialog("Name of new method: ")
+    if g:vim_php_refactoring_auto_validate_visibility == 0
+        let l:visibility = inputdialog("Visibility (default is " . g:vim_php_refactoring_default_method_visibility . "): ")
+        if empty(l:visibility)
+            let l:visibility =  g:vim_php_refactoring_default_method_visibility
+        endif
+    else
+        let l:visibility =  g:vim_php_refactoring_default_method_visibility
+    endif
     normal gv"xdmr
     let l:middleLine = line('.')
     call search(s:php_regex_func_line, 'bW')
@@ -230,14 +278,22 @@ function! PhpExtractMethod() range " {{{
         exec "normal! Olist(" . join(l:output, ", ") . ") = $this->" . l:name . "(" . join(l:parameters, ", ") . ");\<ESC>=3="
         let l:return = "return array(" . join(l:output, ", ") . ");\<CR>"
     endif
-    call s:PhpInsertMethod("private", l:name, l:parametersSignature, @x . l:return)
+    call s:PhpInsertMethod(l:visibility, l:name, l:parametersSignature, @x . l:return)
     normal `r
 endfunction
 " }}}
 
 function! PhpCreateProperty() " {{{
     let l:name = inputdialog("Name of new property: ")
-    call s:PhpInsertProperty(l:name, "private")
+    if g:vim_php_refactoring_auto_validate_visibility == 0
+        let l:visibility = inputdialog("Visibility (default is " . g:vim_php_refactoring_default_property_visibility . "): ")
+        if empty(l:visibility)
+            let l:visibility =  g:vim_php_refactoring_default_property_visibility
+        endif
+    else
+        let l:visibility =  g:vim_php_refactoring_default_property_visibility
+    endif
+    call s:PhpInsertProperty(l:name, l:visibility)
 endfunction
 " }}}
 
@@ -353,21 +409,29 @@ endfunction
 " }}}
 
 function! s:PhpInsertProperty(name, visibility) " {{{
-    if search(s:php_regex_member_line, 'beW') > 0
-        let l:insertLine = line('.')+1
-    elseif search(s:php_regex_const_line, 'beW') > 0
-        let l:insertLine = line('.')+1
-    elseif search(s:php_regex_class_line, 'beW') > 0
-        call search('{', 'W')
-        let l:insertLine = line('.')
+    let l:regex = '\%(' . join([s:php_regex_member_line, s:php_regex_const_line, s:php_regex_class_line], '\)\|\(') .'\)'
+    if search(l:regex, 'beW') > 0
+        let l:line = getbufline("%", line('.'))[0]
+        if match(l:line, s:php_regex_class_line) > -1
+            call search('{', 'W')
+            call s:PhpInsertPropertyExtended(a:name, a:visibility, line('.'), 0)
+        else
+            call search(';', 'W')
+            call s:PhpInsertPropertyExtended(a:name, a:visibility, line('.'), 1)
+        endif
     else
-        let l:insertLine = line('.')
+        call search(';', 'W')
+        call s:PhpInsertPropertyExtended(a:name, a:visibility, line('.'), 0)
     endif
-    call append(l:insertLine, '/**')
-    call append(l:insertLine+1, '* @var mixed')
-    call append(l:insertLine+2, '*/')
-    call append(l:insertLine+3, a:visibility . " $" . a:name . ';')
-    call append(l:insertLine+4, "")
+endfunction
+" }}}
+
+function! s:PhpInsertPropertyExtended(name, visibility, insertLine, emptyLineBefore) " {{{
+    call append(a:insertLine, '')
+    call append(a:insertLine + a:emptyLineBefore, '/**')
+    call append(a:insertLine + a:emptyLineBefore + 1, '* @var mixed')
+    call append(a:insertLine + a:emptyLineBefore + 2, '*/')
+    call append(a:insertLine + a:emptyLineBefore + 3, a:visibility . " $" . a:name . ';')
     normal j=5=
 endfunction
 " }}}
